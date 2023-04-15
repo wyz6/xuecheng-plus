@@ -22,4 +22,21 @@ public interface TeachplanMapper extends BaseMapper<Teachplan> {
      * @author wyz
      */
     List<TeachplanDto> selectTreeNodes(long courseId);
+
+    /**
+     * 查询某个父课程计划的子计划的个数
+     *
+     * @param id 课程计划id
+     * @return 子计划的个数
+     */
+    int selectSonPlanById(Long id);
+
+
+    /**
+     * 修改课程计划的排序值
+     *
+     * @param id      课程计划id
+     * @param orderBy 排序值
+     */
+    void updateOrderBy(Long id, Integer orderBy);
 }

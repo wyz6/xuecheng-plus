@@ -28,4 +28,20 @@ public interface TeachplanService {
      */
     void saveTeachplan(SaveTeachplanDto teachplanDto);
 
+    /**
+     * @param courseId 课程id
+     * @return void
+     * @description 删除课程计划
+     * @date 2023/4/15 11:42
+     */
+    void deleteTeachplan(Long courseId);
+
+
+    /**
+     * 课程计划排序
+     *
+     * @param move        上移还是下移
+     * @param teachplanId 需要移动的课程的id
+     */
+    void moveTeachplan(String move, Long teachplanId);
 }

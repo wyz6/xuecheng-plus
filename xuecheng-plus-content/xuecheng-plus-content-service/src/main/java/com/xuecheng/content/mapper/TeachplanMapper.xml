@@ -100,4 +100,15 @@
                  two.orderby
     </select>
 
+    <select id="selectSonPlanById" resultType="java.lang.Integer">
+        select count(id)
+        from teachplan
+        where parentid = #{value};
+    </select>
+
+    <update id="updateOrderBy">
+        update teachplan
+        set orderby = #{orderBy}
+        where id = #{id};
+    </update>
 </mapper>
