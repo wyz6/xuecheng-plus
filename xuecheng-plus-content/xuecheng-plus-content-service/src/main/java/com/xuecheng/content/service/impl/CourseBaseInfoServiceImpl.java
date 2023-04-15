@@ -5,17 +5,14 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.xuecheng.base.execption.XueChengPlusException;
 import com.xuecheng.base.model.PageParams;
 import com.xuecheng.base.model.PageResult;
-import com.xuecheng.content.mapper.CourseBaseMapper;
-import com.xuecheng.content.mapper.CourseCategoryMapper;
-import com.xuecheng.content.mapper.CourseMarketMapper;
+import com.xuecheng.content.mapper.*;
 import com.xuecheng.content.model.dto.AddCourseDto;
 import com.xuecheng.content.model.dto.CourseBaseInfoDto;
 import com.xuecheng.content.model.dto.EditCourseDto;
 import com.xuecheng.content.model.dto.QueryCourseParamsDto;
-import com.xuecheng.content.model.po.CourseBase;
-import com.xuecheng.content.model.po.CourseCategory;
-import com.xuecheng.content.model.po.CourseMarket;
+import com.xuecheng.content.model.po.*;
 import com.xuecheng.content.service.CourseBaseInfoService;
+import com.xuecheng.content.service.CourseTeacherService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
@@ -23,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.annotation.Resource;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -33,14 +31,23 @@ import java.util.List;
 @Service
 @Slf4j
 public class CourseBaseInfoServiceImpl implements CourseBaseInfoService {
-    @Autowired
-    CourseBaseMapper courseBaseMapper;
+    @Resource
+    private CourseBaseMapper courseBaseMapper;
+
+    @Resource
+    private CourseMarketMapper courseMarketMapper;
+
+    @Resource
+    private CourseCategoryMapper courseCategoryMapper;
+
+    @Resource
+    private TeachplanMapper teachplanMapper;
 
     @Autowired
-    CourseMarketMapper courseMarketMapper;
+    CourseTeacherService courseTeacherService;
 
-    @Autowired
-    CourseCategoryMapper courseCategoryMapper;
+    @Resource
+    private TeachplanMediaMapper teachplanMediaMapper;
 
     @Override
     public PageResult<CourseBase> queryCourseBaseList(PageParams pageParams, QueryCourseParamsDto queryCourseParamsDto) {
@@ -218,4 +225,51 @@ public class CourseBaseInfoServiceImpl implements CourseBaseInfoService {
 
     }
 
+    /**
+     * 删除课程
+     *
+     * @param companyId 机构id
+     * @param courseId  课程id
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteCourseBaseById(Long companyId, Long courseId) {
+        CourseBase courseBase = courseBaseMapper.selectById(courseId);
+        // 校验课程是否存在
+        if (courseBase == null) {
+            XueChengPlusException.cast("要删除的课程不存在");
+        }
+        // 校验机构id
+        if (!courseBase.getCompanyId().equals(companyId)) {
+            XueChengPlusException.cast("不能删除其他机构的课程");
+        }
+        int delete1 = courseBaseMapper.deleteById(courseId);
+        // 校验是否处于可删除状态
+        if (!"202002".equals(courseBase.getAuditStatus())) {
+            XueChengPlusException.cast("只能删除未提交的课程");
+        }
+        // 根据课程id删除营销信息
+        CourseMarket courseMarket = courseMarketMapper.selectById(courseId);
+        int delete2 = 2;
+        if (courseMarket != null) {
+            delete2 = courseMarketMapper.deleteById(courseId);
+        }
+        if (delete1 <= 0 || delete2 <= 0) {
+            XueChengPlusException.cast("删除课程失败");
+        }
+        // 根据课程id删除 课程计划信息 和 媒资信息
+        LambdaQueryWrapper<Teachplan> lqw = new LambdaQueryWrapper<>();
+        lqw.eq(Teachplan::getCourseId, courseBase.getId());
+        List<Teachplan> teachplans = teachplanMapper.selectList(lqw);
+        for (Teachplan teachplan : teachplans) {
+            Long teachplanId = teachplan.getId();
+            teachplanMapper.deleteById(teachplanId);
+            teachplanMediaMapper.delByTeachplanId(teachplanId);
+        }
+        // 根据课程id删除师资信息
+        List<CourseTeacher> teachers = courseTeacherService.listCourseTeacher(courseId);
+        for (CourseTeacher teacher : teachers) {
+            courseTeacherService.deleteCourseTeacher(courseId, teacher.getId());
+        }
+    }
 }
