@@ -10,6 +10,7 @@ import com.xuecheng.content.mapper.CourseCategoryMapper;
 import com.xuecheng.content.mapper.CourseMarketMapper;
 import com.xuecheng.content.model.dto.AddCourseDto;
 import com.xuecheng.content.model.dto.CourseBaseInfoDto;
+import com.xuecheng.content.model.dto.EditCourseDto;
 import com.xuecheng.content.model.dto.QueryCourseParamsDto;
 import com.xuecheng.content.model.po.CourseBase;
 import com.xuecheng.content.model.po.CourseCategory;
@@ -63,8 +64,7 @@ public class CourseBaseInfoServiceImpl implements CourseBaseInfoService {
         // 获取数据总数
         long total = pageResult.getTotal();
         // 构建结果集
-        PageResult<CourseBase> courseBasePageResult = new PageResult<>(list, total, pageParams.getPageNo(), pageParams.getPageSize());
-        return courseBasePageResult;
+        return new PageResult<>(list, total, pageParams.getPageNo(), pageParams.getPageSize());
 
     }
 
@@ -130,9 +130,8 @@ public class CourseBaseInfoServiceImpl implements CourseBaseInfoService {
         // 保存营销信息
         saveCourseMarket(courseMarketNew);
         // 查询课程基本信息及营销信息并返回
-        CourseBaseInfoDto courseBaseInfo = getCourseBaseInfo(courseId);
 
-        return courseBaseInfo;
+        return getCourseBaseInfo(courseId);
     }
 
     // 单独写一个方法，保存课程营销信息，逻辑：存在则更新，不存在则新增
@@ -153,15 +152,13 @@ public class CourseBaseInfoServiceImpl implements CourseBaseInfoService {
         CourseMarket courseMarket = courseMarketMapper.selectById(id);
         if (courseMarket == null) {
             // 不存在，新增
-            int insert = courseMarketMapper.insert(courseMarketNew);
-            return insert;
+            return courseMarketMapper.insert(courseMarketNew);
         } else {
             // 将courseMarketNew中的数据拷贝到courseMarket中
             BeanUtils.copyProperties(courseMarketNew, courseMarket);
             courseMarket.setId(courseMarketNew.getId());
             // 存在，更新
-            int update = courseMarketMapper.updateById(courseMarket);
-            return update;
+            return courseMarketMapper.updateById(courseMarket);
         }
     }
 
@@ -189,4 +186,36 @@ public class CourseBaseInfoServiceImpl implements CourseBaseInfoService {
 
         return courseBaseInfoDto;
     }
+
+    @Transactional
+    @Override
+    public CourseBaseInfoDto updateCourseBase(Long companyId, EditCourseDto dto) {
+        //课程id
+        Long courseId = dto.getId();
+        CourseBase courseBase = courseBaseMapper.selectById(courseId);
+        if (courseBase == null) {
+            XueChengPlusException.cast("课程不存在");
+        }
+
+        //校验本机构只能修改本机构的课程
+        if (!courseBase.getCompanyId().equals(companyId)) {
+            XueChengPlusException.cast("本机构只能修改本机构的课程");
+        }
+
+        //封装基本信息的数据
+        BeanUtils.copyProperties(dto, courseBase);
+        courseBase.setChangeDate(LocalDateTime.now());
+
+        //更新课程基本信息
+        int i = courseBaseMapper.updateById(courseBase);
+
+        //封装营销信息的数据
+        CourseMarket courseMarket = new CourseMarket();
+        BeanUtils.copyProperties(dto, courseMarket);
+        saveCourseMarket(courseMarket);
+        //查询课程信息
+        return this.getCourseBaseInfo(courseId);
+
+    }
+
 }
